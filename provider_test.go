@@ -33,3 +33,21 @@ func Test_GetProvider(t *testing.T) {
 	a.Equal(err.Error(), "no provider for unknown exists")
 	goth.ClearProviders()
 }
+
+func Test_RemoveProvider(t *testing.T) {
+	a := assert.New(t)
+
+	err := goth.RemoveProvider("unknown")
+	a.Error(err)
+	a.Equal(err.Error(), "no provider for unknown exists")
+
+	provider := &faux.Provider{}
+	goth.UseProviders(provider)
+
+	a.Equal(len(goth.GetProviders()), 1)
+
+	err = goth.RemoveProvider(provider.Name())
+	a.NoError(err)
+
+	a.Equal(len(goth.GetProviders()), 0)
+}
