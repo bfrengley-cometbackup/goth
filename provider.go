@@ -9,6 +9,14 @@ import (
 	"golang.org/x/oauth2"
 )
 
+type ErrNoSuchProvider struct {
+	name string
+}
+
+func (e *ErrNoSuchProvider) Error() string {
+	return fmt.Sprintf("no provider for %s exists", e.name)
+}
+
 // Provider needs to be implemented for each 3rd party authentication provider
 // e.g. Facebook, Twitter, etc...
 type Provider interface {
@@ -62,9 +70,22 @@ func GetProvider(name string) (Provider, error) {
 	providerLock.RUnlock()
 
 	if provider == nil {
-		return nil, fmt.Errorf("no provider for %s exists", name)
+		return nil, &ErrNoSuchProvider{name}
 	}
 	return provider, nil
+}
+
+// RemoveProvider removes a previously created provider. If Goth has not
+// been told to use the named provider it will return an error.
+func RemoveProvider(name string) error {
+	providerLock.Lock()
+	defer providerLock.Unlock()
+
+	if _, ok := providers[name]; !ok {
+		return &ErrNoSuchProvider{name}
+	}
+	delete(providers, name)
+	return nil
 }
 
 // ClearProviders will remove all providers currently in use.
