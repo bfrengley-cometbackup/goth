@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sync"
 
 	"golang.org/x/oauth2"
 )
@@ -26,12 +27,16 @@ const NoAuthUrlErrorMessage = "an AuthURL has not been set"
 // Providers is list of known/available providers.
 type Providers map[string]Provider
 
+var providerLock sync.RWMutex
 var providers = Providers{}
 
 // UseProviders adds a list of available providers for use with Goth.
 // Can be called multiple times. If you pass the same provider more
 // than once, the last will be used.
 func UseProviders(viders ...Provider) {
+	providerLock.Lock()
+	defer providerLock.Unlock()
+
 	for _, provider := range viders {
 		providers[provider.Name()] = provider
 	}
@@ -39,13 +44,23 @@ func UseProviders(viders ...Provider) {
 
 // GetProviders returns a list of all the providers currently in use.
 func GetProviders() Providers {
-	return providers
+	providerLock.RLock()
+	defer providerLock.RUnlock()
+
+	providersCopy := Providers{}
+	for k, v := range providers {
+		providersCopy[k] = v
+	}
+	return providersCopy
 }
 
 // GetProvider returns a previously created provider. If Goth has not
 // been told to use the named provider it will return an error.
 func GetProvider(name string) (Provider, error) {
+	providerLock.RLock()
 	provider := providers[name]
+	providerLock.RUnlock()
+
 	if provider == nil {
 		return nil, fmt.Errorf("no provider for %s exists", name)
 	}
@@ -55,7 +70,9 @@ func GetProvider(name string) (Provider, error) {
 // ClearProviders will remove all providers currently in use.
 // This is useful, mostly, for testing purposes.
 func ClearProviders() {
+	providerLock.Lock()
 	providers = Providers{}
+	providerLock.Unlock()
 }
 
 // ContextForClient provides a context for use with oauth2.
